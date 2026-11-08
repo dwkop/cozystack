@@ -1,0 +1,50 @@
+suite: guest vmagent writes to the parent tenant's VictoriaMetrics
+
+templates:
+  - templates/helmreleases/monitoring-agents.yaml
+
+values:
+  - values/common.yaml
+
+release:
+  name: kubernetes-test
+  namespace: tenant-test
+
+# The monitoring-agents chart reads vmagent.remoteWrite.urls; a scalar url key
+# is ignored and the chart default points at cozy-monitoring inside the guest,
+# which does not exist there. The parent's service needs the parent cluster
+# domain, because a bare .svc resolves inside the guest.
+tests:
+  - it: points remote write at the monitoring tenant's vminsert by FQDN
+    set:
+      addons.monitoringAgents.enabled: true
+      _namespace.monitoring: tenant-root
+    asserts:
+      - equal:
+          path: spec.values.vmagent.remoteWrite.urls
+          value:
+            - http://vminsert-shortterm.tenant-root.svc.cozy.local:8480/insert/0/prometheus
+            - http://vminsert-longterm.tenant-root.svc.cozy.local:8480/insert/0/prometheus
+      - notExists:
+          path: spec.values.vmagent.remoteWrite.url
+      - equal:
+          path: spec.values.vmagent.externalLabels.tenant
+          value: tenant-test
+
+  - it: merges addons.monitoringAgents.valuesOverride over the defaults
+    set:
+      addons.monitoringAgents.enabled: true
+      _namespace.monitoring: tenant-root
+      addons.monitoringAgents.valuesOverride:
+        vmagent:
+          externalLabels:
+            cluster: custom
+    asserts:
+      - equal:
+          path: spec.values.vmagent.externalLabels.cluster
+          value: custom
+      - equal:
+          path: spec.values.vmagent.externalLabels.tenant
+          value: tenant-test
+      - exists:
+          path: spec.values.fluent-bit.config.outputs

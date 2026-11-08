@@ -1,0 +1,21 @@
+suite: vmagent tenant external label
+
+templates:
+  - templates/vmagent.yaml
+
+# A guest cluster keeps global.target at its own cozy-monitoring, so the tenant
+# label must be settable separately or every guest reports tenant=cozy-monitoring.
+tests:
+  - it: defaults the tenant label to global.target
+    asserts:
+      - equal:
+          path: spec.externalLabels.tenant
+          value: cozy-monitoring
+
+  - it: uses vmagent.externalLabels.tenant when set
+    set:
+      vmagent.externalLabels.tenant: tenant-test
+    asserts:
+      - equal:
+          path: spec.externalLabels.tenant
+          value: tenant-test
